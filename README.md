@@ -2,14 +2,14 @@
 
 An n8n workflow that monitors Austrian Lotto and EuroMillions jackpots and sends automated Telegram notifications on draw days and when new jackpots are announced.
 
+![n8n workflow overview](docs/workflow_jackpot_message_overview.jpg)
+
 ## Features
 
 - Checks Lotto 6 aus 45 and EuroMillions once per day
 - Sends a Telegram reminder when a draw takes place that day
 - Sends the new jackpot amount after the draw information changes
 - Stores the latest draw date in an n8n Data Table to prevent duplicate jackpot notifications
-- Handles both lottery games in a single workflow
-- Uses the `Europe/Vienna` timezone
 
 ## How it works
 
@@ -39,7 +39,7 @@ The workflow obtains draw information from the public endpoints used by the Aust
 
 ### 1. Import the workflow
 
-Download `austrian-lottery-jackpot-notifications.json` and import it into n8n using **Import from File**.
+Download `n8n_workflow_jackpot_message.json` and import it into n8n using **Import from File**.
 
 The imported workflow is disabled by default so that it cannot run before configuration is complete.
 
