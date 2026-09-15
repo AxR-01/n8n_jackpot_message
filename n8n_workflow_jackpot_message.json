@@ -1,0 +1,600 @@
+{
+  "name": "Austrian Lottery Jackpot Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1440,
+        304
+      ],
+      "id": "93da599f-6aed-47e8-8568-dc566fcc0c10",
+      "name": "Send a text message"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        304
+      ],
+      "id": "e0cc9c10-a345-4b95-b5cc-d3110bbe0f5c",
+      "name": "Regular Daily Trigger",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YOUR_DATA_TABLE_ID",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "game",
+              "keyValue": "={{ $json.game }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "saved_date": "={{ $json.drawDate }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "game",
+              "displayName": "game",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "saved_date",
+              "displayName": "saved_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1152,
+        304
+      ],
+      "id": "579b2f46-0e17-41c1-948d-3705e4aa4b1a",
+      "name": "Update row(s)"
+    },
+    {
+      "parameters": {
+        "url": "https://lotterien.win2day.at/jam/drawgame/v1/drawInfo/EUROMILLIONEN",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        -48
+      ],
+      "id": "09b5d6d4-5cc0-48c9-962f-eff727eacbe1",
+      "name": "HTTP Request EuroMillions"
+    },
+    {
+      "parameters": {
+        "url": "https://lotterien.win2day.at/jam/drawgame/v1/drawInfo/LOTTO",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        496
+      ],
+      "id": "4dba9da1-7b69-4eac-846d-1d52822625c0",
+      "name": "HTTP Request Lotto"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YOUR_DATA_TABLE_ID",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "game",
+              "keyValue": "LOTTO"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        656
+      ],
+      "id": "0ae65954-e997-4db3-9400-bb911448c8b6",
+      "name": "Get row(s) L"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "game",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        576
+      ],
+      "id": "4d9b8353-ce66-4af5-a594-2a71aa8561ad",
+      "name": "Merge L"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst game = data.gameDescription;\nconst drawDate = data.drawDate;\nconst savedDate = data.saved_date;\n\nconst jackpotMillions =\n  data.announcedFirstRankPrize.amount.value;\n\nconst today = new Date().toLocaleDateString('en-CA', {\n  timeZone: 'Europe/Vienna'\n});\n\nconst isDrawToday = drawDate === today;\nconst drawDateChanged = drawDate !== savedDate;\n\nlet event = 'none';\nlet shouldSend = false;\nlet message = '';\n\nif (isDrawToday) {\n  event = 'drawToday';\n  shouldSend = true;\n\n  message =\n    `🎰 ${game}\\n\\n` +\n    `Heute ist Ziehung!\\n` +\n    `Jackpot: ${jackpotMillions} Mio. €`;\n\n} else if (drawDateChanged) {\n  event = 'newJackpot';\n  shouldSend = true;\n\n  message =\n    `🎰 ${game}\\n\\n` +\n    `Neuer Jackpot: ${jackpotMillions} Mio. €\\n` +\n    `Nächste Ziehung: ${drawDate}`;\n}\n\nreturn [\n  {\n    json: {\n      game: data.game,\n      gameLabel: game,\n      drawDate,\n      savedDate,\n      jackpotMillions,\n      isDrawToday,\n      drawDateChanged,\n      event,\n      shouldSend,\n      message,\n      rowId: data.id\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        576
+      ],
+      "id": "f2a0fdd3-4975-40da-aec3-25950f033131",
+      "name": "Code JavaScript L"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst game = data.gameDescription;\nconst drawDate = data.drawDate;\nconst savedDate = data.saved_date;\n\nconst jackpotMillions =\n  data.announcedFirstRankPrize.amount.value;\n\nconst today = new Date().toLocaleDateString('en-CA', {\n  timeZone: 'Europe/Vienna'\n});\n\nconst isDrawToday = drawDate === today;\nconst drawDateChanged = drawDate !== savedDate;\n\nlet event = 'none';\nlet shouldSend = false;\nlet message = '';\n\nif (isDrawToday) {\n  event = 'drawToday';\n  shouldSend = true;\n\n  message =\n    `🎰 ${game}\\n\\n` +\n    `Heute ist Ziehung!\\n` +\n    `Jackpot: ${jackpotMillions} Mio. €`;\n\n} else if (drawDateChanged) {\n  event = 'newJackpot';\n  shouldSend = true;\n\n  message =\n    `🎰 ${game}\\n\\n` +\n    `Neuer Jackpot: ${jackpotMillions} Mio. €\\n` +\n    `Nächste Ziehung: ${drawDate}`;\n}\n\nreturn [\n  {\n    json: {\n      game: data.game,\n      gameLabel: game,\n      drawDate,\n      savedDate,\n      jackpotMillions,\n      isDrawToday,\n      drawDateChanged,\n      event,\n      shouldSend,\n      message,\n      rowId: data.id\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        32
+      ],
+      "id": "96951203-1a20-4795-a5fa-5bc6c15f7a8f",
+      "name": "Code JavaScript E"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "game",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        480,
+        32
+      ],
+      "id": "975a478f-3aaa-47cf-a8d1-7244d87bb5f9",
+      "name": "Merge E"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "YOUR_DATA_TABLE_ID",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "game",
+              "keyValue": "EUROMILLIONEN"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        112
+      ],
+      "id": "4832512d-a770-4ccb-baa6-77c1545704b2",
+      "name": "Get row(s) E"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6385fb34-e131-4b58-b94c-da2184876373",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "newJackpot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "newJackpot"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bf4aa20c-f5ad-4e3a-8239-ad83cc9d71fb",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "drawToday",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "drawToday"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "057e2ec7-8def-4310-8ead-81ad016b8482",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NothingHappens"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        560
+      ],
+      "id": "27ad7ca1-e7f0-4dfb-9e23-91ea58009295",
+      "name": "Switch L"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "057e2ec7-8def-4310-8ead-81ad016b8482",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "none",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "NothingHappens"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "bf4aa20c-f5ad-4e3a-8239-ad83cc9d71fb",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "drawToday",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "drawToday"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "6385fb34-e131-4b58-b94c-da2184876373",
+                    "leftValue": "={{ $json.event }}",
+                    "rightValue": "newJackpot",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "newJackpot"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        16
+      ],
+      "id": "00be751b-92e5-46c2-9adc-ca6892b4b78c",
+      "name": "Switch E"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Regular Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request EuroMillions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get row(s) E",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP Request Lotto",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get row(s) L",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request EuroMillions": {
+      "main": [
+        [
+          {
+            "node": "Merge E",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request Lotto": {
+      "main": [
+        [
+          {
+            "node": "Merge L",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) L": {
+      "main": [
+        [
+          {
+            "node": "Merge L",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge L": {
+      "main": [
+        [
+          {
+            "node": "Code JavaScript L",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code JavaScript L": {
+      "main": [
+        [
+          {
+            "node": "Switch L",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code JavaScript E": {
+      "main": [
+        [
+          {
+            "node": "Switch E",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge E": {
+      "main": [
+        [
+          {
+            "node": "Code JavaScript E",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) E": {
+      "main": [
+        [
+          {
+            "node": "Merge E",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Switch L": {
+      "main": [
+        [
+          {
+            "node": "Update row(s)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch E": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Europe/Vienna",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "tags": []
+}
